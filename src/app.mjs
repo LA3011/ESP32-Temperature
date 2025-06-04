@@ -1,13 +1,11 @@
-// Importando Modulos
+// Importando Módulos DEV/PRODUCT
 import express from "express";
 import morgan from "morgan";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import cron from "node-cron";
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+
 // Importando Rutas
 import routeAlertas from "./routes/alertas.mjs";
 import routeClientes from "./routes/clientes.mjs";
@@ -17,44 +15,148 @@ import routeUsuarios from "./routes/usuarios.mjs";
 import routeLogin from "./routes/login.mjs";
 import routeNotifys from "./routes/notifys.mjs";
 import routeReports from "./routes/reports.mjs";
-// modelos 
+
+// Importando Modelos
 import usuariosSchema from "./models/usuarios.mjs";
 import esp32Schema from "./models/esp32.mjs";
-// mongo
-import { ObjectId } from 'mongodb';
-// var environment
+
+// Importando objeto MongoDB
+import { ObjectId } from "mongodb";
+
+// Configuración de Variables de Entorno
 dotenv.config();
-// firebase
+
+// Importando dependencias FIREBASE
 import admin from "firebase-admin";
 import { getMessaging } from "firebase-admin/messaging";
-// rutas relativas server
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+
+// Importar Chalk para colorear la salida
+import chalk from "chalk";
+
+// Definir la constante de conversión: 1 MB = 1048576 bytes
+const BYTES_PER_MB = 1024 * 1024;
+
+// ─────────────────────────────────────────────
+// Variable global para almacenar el consumo diario de ancho de banda
+// (se almacena internamente en bytes, pero se mostrará en MB)
+// ─────────────────────────────────────────────
+let dailyBandwidth = {
+  incoming: 0,
+  outgoing: 0,
+};
+
+// Middleware personalizado para contabilizar el ancho de banda  
+// (excluye la ruta '/bandwidth' para que su propio tráfico no se contabilice)
+function bandwidthCounter(req, res, next) {
+  // Si la ruta es /bandwidth, no queremos sumar su tráfico:
+  if (req.path === "/bandwidth") {
+    return next();
+  }
+
+  let requestBytes = 0;
+  let responseBytes = 0;
+
+  // Detecta los datos entrantes
+  req.on("data", (chunk) => {
+    requestBytes += Buffer.byteLength(chunk);
+  });
+
+  // Fallback: Si no se reciben 'data' por que el body ya fue consumido,
+  // usa el header 'content-length' como respaldo.
+  req.on("end", () => {
+    if (requestBytes === 0 && req.headers["content-length"]) {
+      requestBytes = parseInt(req.headers["content-length"]);
+    }
+  });
+
+  // Guardamos las funciones originales para la respuesta
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+
+  // Interceptamos res.write para capturar los bytes enviados
+  res.write = function (chunk, encoding, callback) {
+    if (chunk) {
+      responseBytes += Buffer.isBuffer(chunk)
+        ? chunk.length
+        : Buffer.byteLength(chunk, encoding);
+    }
+    return originalWrite.apply(res, arguments);
+  };
+
+  // Interceptamos res.end para contabilizar el último fragmento y actualizar el contador global
+  res.end = function (chunk, encoding, callback) {
+    if (chunk) {
+      responseBytes += Buffer.isBuffer(chunk)
+        ? chunk.length
+        : Buffer.byteLength(chunk, encoding);
+    }
+    // Actualizamos el contador global justo antes de terminar la respuesta
+    dailyBandwidth.incoming += requestBytes;
+    dailyBandwidth.outgoing += responseBytes;
+
+    // Convertimos a MB y mostramos con 3 decimales para mayor precisión
+    console.log(
+      chalk.yellow(
+        `Request: ${(requestBytes / BYTES_PER_MB).toFixed(3)} MB, Response: ${(responseBytes / BYTES_PER_MB).toFixed(3)} MB`
+      )
+    );
+    console.log(
+      chalk.red(
+        `Total: Entrada: ${(dailyBandwidth.incoming / BYTES_PER_MB).toFixed(3)} MB - Salida: ${(dailyBandwidth.outgoing / BYTES_PER_MB).toFixed(3)} MB`
+      )
+    );
+    console.log("-------------------------------------------");
+
+    return originalEnd.apply(res, arguments);
+  };
+
+  next();
+}
+
+// ─────────────────────────────────────────────
+// Inicializando la aplicación Express
+// ─────────────────────────────────────────────
+const app = express();
+
+// IMPORTANTE: Coloca el middleware de ancho de banda **antes** de otros middlewares que consuman el body
+app.use(bandwidthCounter);
+
+app.use(morgan("dev"));
+app.use(express.json());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  })
+);
 
 // Cargar Keys de FIREBASE
-if (!admin.apps.length) {// Verifica si ya existe la app; si no, la inicializa
-  // const keyFilePath = join(__dirname, '..', 'keyFireBase', 'esp32-monitor-la-firebase-adminsdk-fbsvc-ec6089aff4.json');
-  // const serviceAccount = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
+if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SECRET);
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
   });
 }
 
+// ─────────────────────────────────────────────
+// Endpoint para consultar el consumo diario de ancho de banda
+// Se agregan cabeceras para evitar caché.
+// Se muestra el acumulado convertido a MB.
+// ─────────────────────────────────────────────
+app.get("/bandwidth", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    incomingMB: (dailyBandwidth.incoming / BYTES_PER_MB).toFixed(3),
+    outgoingMB: (dailyBandwidth.outgoing / BYTES_PER_MB).toFixed(3)
+  });
+});
 
-// Inicializando App en express
-const app = express();
-
-// Middleware
-app.use(morgan("dev"));
-app.use(express.json());
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-}));
-
-// Routing
-app.get("/api", (_req, res) => { res.send("API REST: ESP32-Temperatura"); });
+// ─────────────────────────────────────────────
+// Rutas de la aplicación
+// ─────────────────────────────────────────────
+app.get("/api", (_req, res) => {
+  res.send("API REST: ESP32-Temperatura");
+});
 app.use("/alertas", routeAlertas);
 app.use("/clientes", routeClientes);
 app.use("/esp32", routeEsp32);
@@ -64,101 +166,95 @@ app.use("/notificaciones", routeNotifys);
 app.use("/login", routeLogin);
 app.use("/reports", routeReports);
 
-
-// Verificación de estado WiFi ESP32 (Coleccion MongoDB ATLAS)
+// ─────────────────────────────────────────────
+// Función para verificación del estado del WiFi de ESP32 (MongoDB Atlas)
+// ─────────────────────────────────────────────
 async function verificarEstadoESP32() {
   try {
-    // Obtener todos los ESP32 registrados en la colección
-    const esp32Devices = await mongoose.connection.db.collection("esp32").find().toArray();
+    const esp32Devices = await mongoose.connection.db
+      .collection("esp32")
+      .find()
+      .toArray();
     if (!esp32Devices.length) {
       console.warn("⚠️ No se encontraron ESP32 en la colección.");
       return;
     }
-
-    // Procesar todos los ESP32 en paralelo
     const tareas = esp32Devices.map(async (esp32) => {
       const { _id } = esp32;
-
-      // Buscar el último registro de temperatura
-      const ultimoRegistro = await mongoose.connection.db.collection("temperature1days")
+      const ultimoRegistro = await mongoose.connection.db
+        .collection("temperature1days")
         .find({ id_ESP: _id.toString() })
         .sort({ dateTime: -1 })
         .limit(1)
         .toArray();
-
-      if (!ultimoRegistro.length) {
-        // console.warn(`⚠️ No se encontraron registros de temperatura para ESP32: ${_id}`);
-        return;
-      }
-
+      if (!ultimoRegistro.length) return;
       const { dateTime } = ultimoRegistro[0];
       const tiempoTranscurrido = (new Date() - new Date(dateTime)) / (1000 * 60);
-      // console.log(`⏳ ESP32 ${_id} - Última medición hace ${tiempoTranscurrido.toFixed(2)} minutos.`);
-
-      const nuevoEstado = tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP ? false : true;
-
-      // Actualizar el `statusWifi` del ESP32
-      const resultado = await mongoose.connection.db.collection("esp32")
+      const nuevoEstado =
+        tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP ? false : true;
+      const resultado = await mongoose.connection.db
+        .collection("esp32")
         .updateOne(
           { _id: new mongoose.Types.ObjectId(_id) },
           { $set: { statusWifi: nuevoEstado } }
         );
-        
-        // Notificar Estado Clientes
-        if(tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP){
-          const id_ESP = new ObjectId(_id).toHexString();
-          // console.log(id_ESP)
-          const messaging = getMessaging();
-          const userTokenFCM = await usuariosSchema.findOne({ id_ESP }); 
-          const esp_typeEquipmentAsigned = await esp32Schema.findOne( { _id: new mongoose.Types.ObjectId(id_ESP) }, { typeEquipmentAsigned: 1, _id: 1 }); 
-          const payloadNotify = {
-            tokens: userTokenFCM.tokenFCM, // array de tokens
-            data: {
-              _id: esp_typeEquipmentAsigned._id.toString()
-            },
-            notification: {
-              title: `${userTokenFCM.userName}, ESP32 con Inactividad`,
-              body: `Observación Inusual, Mantente Alerta...`
-            }
-          };
-          // Envio Notificacion
-          await messaging.sendEachForMulticast(payloadNotify);
-        }
-
-
-
-      if (resultado.modifiedCount > 0) {
-        // console.log(`✅ ESP32 ${_id} actualizado a statusWifi: ${nuevoEstado}`);
-      } else {
-        // console.log(`🔹 ESP32 ${_id} no necesitó cambios.`);
+      if (tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP) {
+        const id_ESP = new ObjectId(_id).toHexString();
+        const messaging = getMessaging();
+        const userTokenFCM = await usuariosSchema.findOne({ id_ESP });
+        const esp_typeEquipmentAsigned = await esp32Schema.findOne(
+          { _id: new mongoose.Types.ObjectId(id_ESP) },
+          { typeEquipmentAsigned: 1, _id: 1 }
+        );
+        const payloadNotify = {
+          tokens: userTokenFCM.tokenFCM,
+          data: { _id: esp_typeEquipmentAsigned._id.toString() },
+          notification: {
+            title: `${userTokenFCM.userName}, ESP32 con Inactividad`,
+            body: `Observación Inusual, Mantente Alerta...`,
+          },
+        };
+        await messaging.sendEachForMulticast(payloadNotify);
       }
     });
-
-    await Promise.all(tareas); // Ejecutar todas las actualizaciones en paralelo
-
+    await Promise.all(tareas);
   } catch (error) {
     console.error("❌ Error al verificar estado de los ESP32:", error);
   }
 }
-// Programar verificación cada 10 minutos (WiFi ESP32)
-const cronTime = process.env.CRON_TIME || "*/60 * * * *"; // 📌 Valor por defecto si no está en .env
+
+// Programar verificación periódica (cada 10 minutos por defecto)
+const cronTime = process.env.CRON_TIME || "*/60 * * * *";
 cron.schedule(cronTime, verificarEstadoESP32);
 
+// ─────────────────────────────────────────────
+// Cron job para reiniciar el contador diario a medianoche
+// ─────────────────────────────────────────────
+cron.schedule("0 0 * * *", () => {
+  dailyBandwidth.incoming = 0;
+  dailyBandwidth.outgoing = 0;
+  console.log(chalk.green("Daily bandwidth counter reset."));
+});
 
-// Conectar a MongoDB Atlas con verificación de credenciales
+// ─────────────────────────────────────────────
+// Conexión a MongoDB Atlas
+// ─────────────────────────────────────────────
 if (process.env.KEY_MONGO) {
-  mongoose.connect(process.env.KEY_MONGO)
+  mongoose
+    .connect(process.env.KEY_MONGO)
     .then(() => {
       console.log("✅ Conectado a MongoDB Atlas");
       console.log("Base de datos activa:", mongoose.connection.name);
       console.log("Modelos registrados en Mongoose:", mongoose.modelNames());
     })
-    .catch(e => console.log(`❌ Error de conexión: ${e}`));
+    .catch((e) => console.log(`❌ Error de conexión: ${e}`));
 } else {
   console.error("❌ KEY_MONGO no está definido en las variables de entorno.");
 }
 
-// Inicializando Servidor
+// ─────────────────────────────────────────────
+// Inicialización del servidor
+// ─────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "192.168.1.109", () => {
   console.log(`✅ Servidor escuchando en el puerto ${PORT}`);

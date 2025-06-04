@@ -11,9 +11,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "chalk": "^5.4.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.19.2",
+    "express-bandwidth": "^0.0.1",
+    "express-transform": "^1.0.1",
     "firebase-admin": "^13.4.0",
     "mongodb": "^6.8.0",
     "mongoose": "^8.6.1",
