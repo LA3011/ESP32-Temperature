@@ -1,0 +1,27 @@
+{
+  "name": "node-express-mongo",
+  "version": "1.0.0",
+  "main": "app.mjs",
+  "scripts": {
+    "dev": "nodemon src/app.mjs",
+    "start": "node src/app.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.19.2",
+    "firebase-admin": "^13.4.0",
+    "mongodb": "^6.8.0",
+    "mongoose": "^8.6.1",
+    "morgan": "^1.10.0",
+    "node-cron": "^4.1.0",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
