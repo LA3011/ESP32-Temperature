@@ -32,10 +32,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Cargar Keys de FIREBASE
-// Verifica si ya existe la app; si no, la inicializa
-if (!admin.apps.length) {
-  const keyFilePath = join(__dirname, '..', 'keyFireBase', 'esp32-monitor-la-firebase-adminsdk-fbsvc-ec6089aff4.json');
-  const serviceAccount = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
+if (!admin.apps.length) {// Verifica si ya existe la app; si no, la inicializa
+  // const keyFilePath = join(__dirname, '..', 'keyFireBase', 'esp32-monitor-la-firebase-adminsdk-fbsvc-ec6089aff4.json');
+  // const serviceAccount = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SECRET);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
@@ -142,7 +142,6 @@ async function verificarEstadoESP32() {
 }
 // Programar verificación cada 10 minutos (WiFi ESP32)
 const cronTime = process.env.CRON_TIME || "*/60 * * * *"; // 📌 Valor por defecto si no está en .env
-// Llamando Funcion
 cron.schedule(cronTime, verificarEstadoESP32);
 
 

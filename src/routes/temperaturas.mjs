@@ -6,14 +6,17 @@ import esp32Schema from "../models/esp32.mjs";
 import mongoose from "mongoose"; 
 import notifys from "../models/notifys.mjs"
 import usuariosSchema from "../models/usuarios.mjs"
+import dotenv from 'dotenv';
+dotenv.config(); 
 // firebase
 import admin from "firebase-admin";
 import { getMessaging } from "firebase-admin/messaging";
-// Leer archivo FIREBASE
-const serviceAccount = JSON.parse(
-  fs.readFileSync("./keyFireBase/esp32-monitor-la-firebase-adminsdk-fbsvc-ec6089aff4.json", "utf8")
-);
 
+// Leer archivo FIREBASE
+// const serviceAccount = JSON.parse(
+//   fs.readFileSync("./keyFireBase/esp32-monitor-la-firebase-adminsdk-fbsvc-ec6089aff4.json", "utf8")
+// );
+const serviceAccount = JSON.parse(process.env.FIREBASE_SECRET);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
