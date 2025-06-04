@@ -256,6 +256,6 @@ if (process.env.KEY_MONGO) {
 // Inicialización del servidor
 // ─────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "192.168.1.109", () => {
+app.listen(PORT, () => {
   console.log(`✅ Servidor escuchando en el puerto ${PORT}`);
 });
