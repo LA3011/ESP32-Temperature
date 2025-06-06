@@ -106,7 +106,7 @@ const routeTemperaturas = express.Router();
           console.error("❌ Error al enviar notificación:", error);
         }
       }
-
+console.log(temperaturaGuardada)
       res.status(201).json({ temperaturaGuardada, alertaGuardada, notifyGuardada, alertsDeleted });
 
     } catch (error) {
