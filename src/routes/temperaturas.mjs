@@ -31,7 +31,7 @@ const routeTemperaturas = express.Router();
     try {
       const fecha = new Date();
       const { id_ESP, temperature } = req.body;
-
+console.log("Temperatura Origen", temperature)
       if (!id_ESP || !temperature?.length) {
         return res.status(400).json({ mensaje: "❌ Faltan datos para registro de temperatura." });
       }
