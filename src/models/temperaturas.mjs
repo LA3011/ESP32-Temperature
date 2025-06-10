@@ -18,9 +18,9 @@ const temperatureSchema = new mongoose.Schema({
     index: { expires: process.env.timeTemperature } // ⏳ Configura el TTL correctamente en `index`
   },
   unidad: {
-    type: String,
+    type: String, 
     required: true,
-    default: process.env.timeTemperatureUNIDAD_TEMP, 
+    default: process.env.UNIDAD_TEMP, 
   }
 });
 
