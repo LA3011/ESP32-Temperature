@@ -106,7 +106,7 @@ routeReports.post("/", async (req, res) => {
       `      Dirección : ${infoCliente.address}`,
       `      Correo    : ${infoCliente.email}`,
       `      Teléfono  : ${infoCliente.tlf}`,
-      `      Id Modulo : ${id_ESP}`,
+      `      Id Sensor : ${id_ESP}`,
     ];
 
     // Líneas de texto centradas
