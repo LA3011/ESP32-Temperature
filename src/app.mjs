@@ -175,30 +175,42 @@ async function verificarEstadoESP32() {
       .collection("esp32")
       .find()
       .toArray();
+
     if (!esp32Devices.length) {
       console.warn("⚠️ No se encontraron ESP32 en la colección.");
       return;
     }
+
     const tareas = esp32Devices.map(async (esp32) => {
-      const { _id } = esp32;
+      const { _id, lastNotification } = esp32; // Agregamos `lastNotification`
+      
       const ultimoRegistro = await mongoose.connection.db
         .collection("temperature1days")
         .find({ id_ESP: _id.toString() })
         .sort({ dateTime: -1 })
         .limit(1)
         .toArray();
+
       if (!ultimoRegistro.length) return;
+
       const { dateTime } = ultimoRegistro[0];
       const tiempoTranscurrido = (new Date() - new Date(dateTime)) / (1000 * 60);
-      const nuevoEstado =
-        tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP ? false : true;
-      const resultado = await mongoose.connection.db
+      const nuevoEstado = tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP ? false : true;
+
+      // Actualizar estado de conexión del ESP32
+      await mongoose.connection.db
         .collection("esp32")
         .updateOne(
           { _id: new mongoose.Types.ObjectId(_id) },
           { $set: { statusWifi: nuevoEstado } }
         );
-      if (tiempoTranscurrido > process.env.VERIFICATION_ACTIVITY_WIFI_ESP) {
+
+      // Validar si la última notificación fue hace menos de X minutos (evita spam)
+      const tiempoDesdeNotificacion = lastNotification 
+        ? (new Date() - new Date(lastNotification)) / (1000 * 60) 
+        : process.env.VERIFICATION_ACTIVITY_WIFI_ESP + 1;
+
+      if (nuevoEstado === false && tiempoDesdeNotificacion > process.env.NOTIFICATION_INTERVAL) {
         const id_ESP = new ObjectId(_id).toHexString();
         const messaging = getMessaging();
         const userTokenFCM = await usuariosSchema.findOne({ id_ESP });
@@ -206,6 +218,7 @@ async function verificarEstadoESP32() {
           { _id: new mongoose.Types.ObjectId(id_ESP) },
           { typeEquipmentAsigned: 1, _id: 1 }
         );
+
         const payloadNotify = {
           tokens: userTokenFCM.tokenFCM,
           data: { _id: esp_typeEquipmentAsigned._id.toString() },
@@ -214,9 +227,19 @@ async function verificarEstadoESP32() {
             body: `Observación Inusual, Mantente Alerta...`,
           },
         };
+
         await messaging.sendEachForMulticast(payloadNotify);
+
+        // Guardar la nueva fecha de notificación en la BD
+        await mongoose.connection.db
+          .collection("esp32")
+          .updateOne(
+            { _id: new mongoose.Types.ObjectId(_id) },
+            { $set: { lastNotification: new Date() } }
+          );
       }
     });
+
     await Promise.all(tareas);
   } catch (error) {
     console.error("❌ Error al verificar estado de los ESP32:", error);
