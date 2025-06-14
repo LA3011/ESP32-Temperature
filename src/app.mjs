@@ -247,7 +247,7 @@ async function verificarEstadoESP32() {
 }
 
 // Programar verificación periódica (cada 10 minutos por defecto)
-const cronTime = process.env.CRON_TIME;
+const cronTime = process.env.CRON_TIME ||  "*/15 * * * *";
 cron.schedule(cronTime, verificarEstadoESP32);
 
 // ─────────────────────────────────────────────
