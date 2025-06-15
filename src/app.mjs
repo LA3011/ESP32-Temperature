@@ -251,10 +251,15 @@ async function verificarEstadoESP32() {
 // const cronTime = "*/5 * * * *";
 // cron.schedule(cronTime, verificarEstadoESP32);
 
-const cronTime = "*/10 * * * *";
-cron.schedule(cronTime, () => {
+
+// cron.schedule(cronTime, () => {
+//   verificarEstadoESP32();
+// });
+const cronTime = process.env.CRON_TIME;
+setInterval(() => {
+  // console.log("🕒 Ejecutando verificación de ESP32...");
   verificarEstadoESP32();
-});
+}, cronTime); // Ejecuta cada 10 minutos (600,000 ms)
 
 // ─────────────────────────────────────────────
 // Cron job para reiniciar el contador diario a medianoche
