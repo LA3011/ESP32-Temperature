@@ -95,17 +95,17 @@ function bandwidthCounter(req, res, next) {
     dailyBandwidth.outgoing += responseBytes;
 
     // Convertimos a MB y mostramos con 3 decimales para mayor precisión
-    console.log(
-      chalk.yellow(
-        `Request: ${(requestBytes / BYTES_PER_MB).toFixed(3)} MB, Response: ${(responseBytes / BYTES_PER_MB).toFixed(3)} MB`
-      )
-    );
-    console.log(
-      chalk.red(
-        `Total: Entrada: ${(dailyBandwidth.incoming / BYTES_PER_MB).toFixed(3)} MB - Salida: ${(dailyBandwidth.outgoing / BYTES_PER_MB).toFixed(3)} MB`
-      )
-    );
-    console.log("-------------------------------------------");
+    // console.log(
+    //   chalk.yellow(
+    //     `Request: ${(requestBytes / BYTES_PER_MB).toFixed(3)} MB, Response: ${(responseBytes / BYTES_PER_MB).toFixed(3)} MB`
+    //   )
+    // );
+    // console.log(
+    //   chalk.red(
+    //     `Total: Entrada: ${(dailyBandwidth.incoming / BYTES_PER_MB).toFixed(3)} MB - Salida: ${(dailyBandwidth.outgoing / BYTES_PER_MB).toFixed(3)} MB`
+    //   )
+    // );
+    // console.log("-------------------------------------------");
 
     return originalEnd.apply(res, arguments);
   };
@@ -255,9 +255,9 @@ async function verificarEstadoESP32() {
 // cron.schedule(cronTime, () => {
 //   verificarEstadoESP32();
 // });
-const cronTime = process.env.CRON_TIME;
+const cronTime = process.env.CRON_TIME || 60000;
 setInterval(() => {
-  // console.log("🕒 Ejecutando verificación de ESP32...");
+  console.log("🕒 Ejecutando verificación de ESP32...");
   verificarEstadoESP32();
 }, cronTime); // Ejecuta cada 10 minutos (600,000 ms)
 
