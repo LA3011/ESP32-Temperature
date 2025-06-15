@@ -251,7 +251,6 @@ async function verificarEstadoESP32() {
 // const cronTime = "*/5 * * * *";
 // cron.schedule(cronTime, verificarEstadoESP32);
 const cronTime = process.env.CRON_TIME;
-console.log(`CRON_TIME:${cronTime}`);
 cron.schedule(cronTime, () => {
   verificarEstadoESP32();
 });
@@ -275,6 +274,13 @@ if (process.env.KEY_MONGO) {
       console.log("✅ Conectado a MongoDB Atlas");
       console.log("Base de datos activa:", mongoose.connection.name);
       console.log("Modelos registrados en Mongoose:", mongoose.modelNames());
+      console.log(`CRON_TIME:${process.env.CRON_TIME}`);
+      console.log(`VERIFICATION_ACTIVITY_WIFI_ESP:${process.env.VERIFICATION_ACTIVITY_WIFI_ESP}`);
+      console.log(`LIMITE_ALERTAS_post_NOTIFICACION:${process.env.LIMITE_ALERTAS_post_NOTIFICACION}`);
+      console.log(`timeTemperature:${process.env.timeTemperature}`);
+      
+      
+      
     })
     .catch((e) => console.log(`❌ Error de conexión: ${e}`));
 } else {
